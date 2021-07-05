@@ -3,7 +3,7 @@
 
 #include "lib/include/npu.h"
 
-int replicator(void *inst_id, struct stage_fn *sfn, struct replicator_context *in);
+int replicator(struct stage_fn *sfn, struct replicator_context *in);
 
 void init_context(struct replicator_context* ctx);
 

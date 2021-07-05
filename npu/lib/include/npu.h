@@ -212,21 +212,19 @@ struct io_fn {
  * Pointers to functions for working with switch internal memory.
  * */
 struct stage_fn {
-    uint32_t (*alloc_fb) (void *);
-    struct frame_buffer * (*mmap_fb) (void *, uint32_t);
-    void (*free_fb) (void *, uint32_t);
-    void (*read_fb)(void *, uint8_t *, uint8_t *, uint32_t);
+    uint32_t (*alloc_fb) (void);
+    struct frame_buffer * (*mmap_fb) (uint32_t);
+    void (*free_fb) (uint32_t);
+    void (*read_fb)(uint8_t *, uint8_t *, uint32_t);
 };
 
 /**
  * Pointer to function for lookup operation.
  * */
 struct lookup_fn {
-    struct search_result (*search_rd)(void *, struct search_key);
+    struct search_result (*search_rd)(struct search_key);
 };
 
-void process_model(uint8_t, struct io_fn *, 
-                   struct packet_context *, 
-                   struct stage_fn *);
+void process_model(uint8_t, struct packet_context *, struct stage_fn *);
 
 #endif //NPU_LIB_NPU_H

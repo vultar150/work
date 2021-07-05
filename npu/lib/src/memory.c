@@ -12,7 +12,7 @@ static struct frame_buffer shbm_frame_buffers[TOTAL_FRAME_BUFFERS_NR];
  * */
 static int shbm_frame_buffers_in_use[TOTAL_FRAME_BUFFERS_NR];
 
-uint32_t shbm_alloc_frame_buf(void *inst_id)
+uint32_t shbm_alloc_frame_buf(void)
 {
     for (unsigned int i = 0; i < TOTAL_FRAME_BUFFERS_NR; i++) {
         if (!shbm_frame_buffers_in_use[i]) {
@@ -24,7 +24,7 @@ uint32_t shbm_alloc_frame_buf(void *inst_id)
     return ~0;
 }
 
-struct frame_buffer * shbm_frame_buf_mmap(void *inst_id, uint32_t fb_id)
+struct frame_buffer * shbm_frame_buf_mmap(uint32_t fb_id)
 {
     if (TOTAL_FRAME_BUFFERS_NR <= fb_id)
         return 0;
@@ -32,13 +32,13 @@ struct frame_buffer * shbm_frame_buf_mmap(void *inst_id, uint32_t fb_id)
     return &shbm_frame_buffers[fb_id];
 }
 
-void shbm_free_frame_buf(void *inst_id, uint32_t fb_id)
+void shbm_free_frame_buf(uint32_t fb_id)
 {
     if (TOTAL_FRAME_BUFFERS_NR > fb_id)
         shbm_frame_buffers_in_use[fb_id] = 0;
 }
 
-void shbm_read_frame_buf(void *inst_id, uint8_t *addr, uint8_t *data, uint32_t size)
+void shbm_read_frame_buf(uint8_t *addr, uint8_t *data, uint32_t size)
 {
     memcpy(data, addr, size);
 }

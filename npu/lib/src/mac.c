@@ -45,16 +45,14 @@ void mac_tx(uint8_t port_nr, uint64_t data, int valid, int eof)
     }
 }
 
-int receive(void *inst_id,
-            uint8_t in_port_nr,
-            struct packet_context *prs_ctx,
+int receive(uint8_t in_port_nr, struct packet_context *prs_ctx,
             struct io_fn *io, struct stage_fn *sfn)
 {
     prs_ctx->header.sz = 0;
     uint16_t framesz = 0; /*!< Read bytes counter. */
     int res;
 
-    uint32_t fb_id = sfn->alloc_fb(inst_id);
+    uint32_t fb_id = sfn->alloc_fb();
     struct counter *glb_counters = get_counters();
 
     COUNTER_ATOMIC_INC(glb_counters->in_frames[in_port_nr]);
@@ -66,7 +64,7 @@ int receive(void *inst_id,
     }
 
     /* Get buffer address to write incoming frame. */
-    struct frame_buffer *fb = sfn->mmap_fb(inst_id, fb_id);
+    struct frame_buffer *fb = sfn->mmap_fb(fb_id);
 
     while (1) {
         uint64_t r;
@@ -77,7 +75,7 @@ int receive(void *inst_id,
 
         if (framesz + res > sizeof(fb->data)) {
             /* Frame is too long. */
-            sfn->free_fb(inst_id, fb_id);
+            sfn->free_fb(fb_id);
             COUNTER_ATOMIC_INC(glb_counters->drop_frame_too_long);
             return 2;
         }

@@ -30,8 +30,7 @@ void mac_tx(uint8_t port_nr, uint64_t data, int valid, int eof);
  * @param in_port_nr Ingress port number.
  * @param prs_ctx Context for Parse stage.
  * */
-int receive(void *inst_id, uint8_t in_port_nr,
-            struct packet_context *prs_ctx,
+int receive(uint8_t in_port_nr, struct packet_context *prs_ctx,
             struct io_fn *io, struct stage_fn *sfn);
 
 /**

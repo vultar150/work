@@ -7,21 +7,21 @@
  * Allocates new buffer to write a frame.
  * Returns buffer descriptor (number of the first free buffer).
  * */
-uint32_t shbm_alloc_frame_buf(void *inst_id);
+uint32_t shbm_alloc_frame_buf(void);
 
 /**
  * Returns memory address corresponding to the descriptor.
  *
  * @param fb_id The frame descriptor.
  * */
-struct frame_buffer * shbm_frame_buf_mmap(void *inst_id, uint32_t fb_id);
+struct frame_buffer * shbm_frame_buf_mmap(uint32_t fb_id);
 
 /**
  * Marks corresponding frame buffer as free.
  *
  * @param fb_id The frame descriptor.
  * */
-void shbm_free_frame_buf(void *inst_id, uint32_t fb_id);
+void shbm_free_frame_buf(uint32_t fb_id);
 
 /**
  * Reads frame from internal memory.
@@ -30,7 +30,7 @@ void shbm_free_frame_buf(void *inst_id, uint32_t fb_id);
  * @param data Address to write frame.
  * @param size Frame size.
  * */
-void shbm_read_frame_buf(void *inst_id, uint8_t *addr, uint8_t *data, uint32_t size);
+void shbm_read_frame_buf(uint8_t *addr, uint8_t *data, uint32_t size);
 
 uint8_t * get_out_frames(uint8_t port_nr);
 uint16_t * get_out_frames_sizes(uint8_t port_nr);
