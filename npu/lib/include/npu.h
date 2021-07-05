@@ -225,6 +225,8 @@ struct lookup_fn {
     struct search_result (*search_rd)(void *, struct search_key);
 };
 
-void process_model(uint8_t, struct io_fn *);
+void process_model(uint8_t, struct io_fn *, 
+                   struct packet_context *, 
+                   struct stage_fn *);
 
 #endif //NPU_LIB_NPU_H
