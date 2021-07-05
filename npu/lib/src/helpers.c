@@ -1,7 +1,7 @@
 #include "lib/include/helpers.h"
 #include "lib/include/npu.h"
 
-static void * bare_memcpy(void *to, const void *from, size_t nr)
+void * memcpy(void *to, const void *from, size_t nr)
 {
     size_t i;
 
@@ -10,10 +10,10 @@ static void * bare_memcpy(void *to, const void *from, size_t nr)
 
     return to;
 }
-void * memcpy(void *, const void *, size_t)
-__attribute__((weak, alias("bare_memcpy")));
+// void * memcpy(void *, const void *, size_t)
+// __attribute__((weak, alias("bare_memcpy")));
 
-static void * bare_memset(void *to, int val, size_t nr)
+void * memset(void *to, int val, size_t nr)
 {
     size_t i;
 
@@ -22,10 +22,10 @@ static void * bare_memset(void *to, int val, size_t nr)
 
     return to;
 }
-void * memset(void *, int, size_t)
-__attribute__((weak, alias("bare_memset")));
+// void * memset(void *, int, size_t)
+// __attribute__((weak, alias("bare_memset")));
 
-static int bare_memcmp(const void *a, const void *b, size_t nr)
+int memcmp(const void *a, const void *b, size_t nr)
 {
     size_t i;
     const uint8_t *pa = a, *pb = b;
@@ -40,8 +40,8 @@ static int bare_memcmp(const void *a, const void *b, size_t nr)
     }
     return 0;
 }
-int memcmp(const void *, const void *, size_t)
-__attribute__((weak, alias("bare_memcmp")));
+// int memcmp(const void *, const void *, size_t)
+// __attribute__((weak, alias("bare_memcmp")));
 
 uint32_t get_mac_hash(const struct ethaddr *mac)
 {
