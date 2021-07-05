@@ -27,16 +27,16 @@ static uint8_t lookup_port(struct hashtable *, uint32_t,
 						   struct ethaddr *, uint16_t);
 
 
-struct resolve_result match_action_src(void *inst_id, struct stage_fn *sfn,
+struct resolve_result match_action_src(struct stage_fn *sfn,
                                        struct lookup_fn *lfn,
-                                       struct packet_context *lkp_ctx,
-                                       struct packet_context *rsv_ctx,
-                                       struct replicator_context *repl_ctx)
+                                       struct packet_context *in_ctx,
+                                       struct replicator_context *repl_ctx, 
+                                       struct packet_context *out_ctx)
 {
-    struct lookup_src_ctx *lkp = (void *) lkp_ctx->stage_context;
-    struct resolve_src_ctx *rsv = (void *) rsv_ctx->stage_context;
-    rsv_ctx->location = lkp_ctx->location;
-    rsv_ctx->header = lkp_ctx->header;
+    struct lookup_src_ctx *lkp = (void *) in_ctx->stage_context;
+    struct resolve_src_ctx *rsv = (void *) out_ctx->stage_context;
+    out_ctx->location = in_ctx->location;
+    out_ctx->header = in_ctx->header;
 
     rsv->src_port = lkp->src_port;
 
@@ -56,9 +56,9 @@ struct resolve_result match_action_src(void *inst_id, struct stage_fn *sfn,
     k->mac = lkp->src_mac;
     k->tag = lkp->vlan_vid;
 
-    rsv->src_table_port = lfn->search_rd(inst_id, sk).res_entry[0];
+    rsv->src_table_port = lfn->search_rd(sk).res_entry[0];
 
-    struct lookup_dst_ctx *lkp_dst = (void *) lkp_ctx->stage_context;
+    struct lookup_dst_ctx *lkp_dst = (void *) in_ctx->stage_context;
 
     struct resolve_result res;
     res.next_stage = 1;
@@ -77,10 +77,10 @@ struct resolve_result match_action_src(void *inst_id, struct stage_fn *sfn,
         return res;
 
     init_context(repl_ctx);
-    uint32_t fb_id = sfn->alloc_fb(NULL);
-    struct frame_buffer* fb = sfn->mmap_fb(NULL, rsv_ctx->location.fb_id);
-    struct frame_buffer* new_fb = sfn->mmap_fb(NULL, fb_id);
-    memcpy(new_fb->data, fb->data, rsv_ctx->location.framesz);
+    uint32_t fb_id = sfn->alloc_fb();
+    struct frame_buffer* fb = sfn->mmap_fb(out_ctx->location.fb_id);
+    struct frame_buffer* new_fb = sfn->mmap_fb(fb_id);
+    memcpy(new_fb->data, fb->data, out_ctx->location.framesz);
 
     /* Form a packet from the src_mac, src_port, vlan_vid, src_hash. */
     struct ctrl_lrn_pkt pkt;
@@ -90,33 +90,31 @@ struct resolve_result match_action_src(void *inst_id, struct stage_fn *sfn,
     pkt.vlan_tag = rsv->vlan_vid;
     memcpy(pkt.mac, rsv->src_mac.octets, sizeof(pkt.mac));
     memcpy(repl_ctx->list[0].header.data, &pkt, sizeof(pkt));
-    repl_ctx->list[0].header.sz = rsv_ctx->header.sz;
+    repl_ctx->list[0].header.sz = out_ctx->header.sz;
     repl_ctx->list[0].port_cnt = 1;
     repl_ctx->list[0].ports[0] = CTRL_PORT;
     repl_ctx->location.fb_id = fb_id;
-    repl_ctx->location.framesz = rsv_ctx->location.framesz;
+    repl_ctx->location.framesz = out_ctx->location.framesz;
 
     res.out_port = CTRL_PORT;
     return res;
 }
 
 
-struct resolve_result match_action_dst(void *inst_id, struct stage_fn *sfn,
+struct resolve_result match_action_dst(struct stage_fn *sfn,
                                        struct lookup_fn *lfn,
-                                       struct packet_context *lkp_ctx,
-                                       struct packet_context *rsv_ctx,
-                                       struct replicator_context *repl_ctx)
+                                       struct packet_context *in_ctx,
+                                       struct replicator_context *repl_ctx,
+                                       struct packet_context *lkp_ctx)
 {
     struct lookup_dst_ctx *lkp = (void *) lkp_ctx->stage_context;
-    struct resolve_dst_ctx *rsv = (void *) rsv_ctx->stage_context;
-    rsv_ctx->location = lkp_ctx->location;
-    rsv_ctx->header = lkp_ctx->header;
+    struct resolve_dst_ctx *rsv = (void *) in_ctx->stage_context;
 
-    rsv->src_port = lkp->src_port;
+    // rsv->src_port = lkp->src_port;
 
-    rsv->is_tagged = lkp->is_tagged;
-    rsv->vlan_vid = lkp->vlan_vid;
-    rsv->vlan_pcp = lkp->vlan_pcp;
+    // rsv->is_tagged = lkp->is_tagged;
+    // rsv->vlan_vid = lkp->vlan_vid;
+    // rsv->vlan_pcp = lkp->vlan_pcp;
 
     struct search_key sk;
     struct key *k = (void *) sk.key;
@@ -129,7 +127,7 @@ struct resolve_result match_action_dst(void *inst_id, struct stage_fn *sfn,
         k->mac = lkp->dst_mac;
         k->tag = lkp->vlan_vid;
 
-        rsv->dst_port = lfn->search_rd(inst_id, sk).res_entry[0];
+        rsv->dst_port = lfn->search_rd(sk).res_entry[0];
     } else {
         rsv->dst_port = PORT_NOT_FOUND;
     }
@@ -139,7 +137,7 @@ struct resolve_result match_action_dst(void *inst_id, struct stage_fn *sfn,
     k->src_port = lkp->src_port;
     k->dst_port = rsv->dst_port;
 
-    struct search_result sr = lfn->search_rd(inst_id, sk);
+    struct search_result sr = lfn->search_rd(sk);
     struct res *r = (void *) sr.res_entry;
     rsv->len = r->len;
     if (rsv->len)
@@ -151,7 +149,7 @@ struct resolve_result match_action_dst(void *inst_id, struct stage_fn *sfn,
     result.next_stage = 0;
 
     init_context(repl_ctx);
-    repl_ctx->location = rsv_ctx->location;
+    repl_ctx->location = in_ctx->location;
 
     uint8_t vlan_tag[4] = { 0x81, 0x00,
                             rsv->vlan_pcp | rsv->vlan_vid >> 8, rsv->vlan_vid & 0xff };
@@ -159,7 +157,7 @@ struct resolve_result match_action_dst(void *inst_id, struct stage_fn *sfn,
     for (uint8_t i = 0; i < rsv->len;i++) {
         switch (add_to_resolve_list(rsv->is_tagged, &rsv->items[i])) {
             case NO_CHNG:
-                repl_ctx->list[repl_ctx->rec_cnt].header = rsv_ctx->header;
+                repl_ctx->list[repl_ctx->rec_cnt].header = in_ctx->header;
                 repl_ctx->list[repl_ctx->rec_cnt].ports[repl_ctx->list[repl_ctx->rec_cnt].port_cnt] =
                     (uint8_t) rsv->items[repl_ctx->rec_cnt].port;
                 repl_ctx->list[repl_ctx->rec_cnt].port_cnt++;
@@ -167,13 +165,13 @@ struct resolve_result match_action_dst(void *inst_id, struct stage_fn *sfn,
                 break;
 
             case ADD_TAG:
-                repl_ctx->list[repl_ctx->rec_cnt].header = rsv_ctx->header;
+                repl_ctx->list[repl_ctx->rec_cnt].header = in_ctx->header;
                 if (add_tag(repl_ctx->list[repl_ctx->rec_cnt].header.data,
                             repl_ctx->list[repl_ctx->rec_cnt].header.sz,
                             MEMBER_SIZE(struct eth_hdr, dst) + MEMBER_SIZE(struct eth_hdr, src),
                             vlan_tag, sizeof(vlan_tag))) {
 
-                    sfn->free_fb(inst_id, rsv_ctx->location.fb_id);
+                    sfn->free_fb(in_ctx->location.fb_id);
                     result.drop = 1;
                     return result;
                 }
@@ -185,13 +183,13 @@ struct resolve_result match_action_dst(void *inst_id, struct stage_fn *sfn,
                 break;
 
             case DEL_TAG:
-                repl_ctx->list[repl_ctx->rec_cnt].header = rsv_ctx->header;
+                repl_ctx->list[repl_ctx->rec_cnt].header = in_ctx->header;
                 if (del_tag(repl_ctx->list[repl_ctx->rec_cnt].header.data,
                             repl_ctx->list[repl_ctx->rec_cnt].header.sz,
                             MEMBER_SIZE(struct eth_hdr, dst) + MEMBER_SIZE(struct eth_hdr, src),
                             sizeof(vlan_tag))) {
 
-                    sfn->free_fb(inst_id, rsv_ctx->location.fb_id);
+                    sfn->free_fb(in_ctx->location.fb_id);
                     result.drop = 1;
                     return result;
                 }
@@ -250,7 +248,7 @@ static uint8_t vlan_table_search(uint8_t dst_port, uint8_t src_port,
 	return len;
 }
 
-struct search_result lookup_switch(void *inst_id, struct search_key sk)
+struct search_result lookup_switch(struct search_key sk)
 {
     struct search_result sr;
     struct hashtable *hash_tbl;

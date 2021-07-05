@@ -52,7 +52,7 @@ struct res {
     struct vlan_node_item items[ETH_PORTS_NR - 1];
 };
 
-struct search_result lookup_switch(void *, struct search_key);
+struct search_result lookup_switch(struct search_key);
 
 void * src_table_mmap(void);
 void * dst_table_mmap(void);

@@ -3,7 +3,7 @@
 
 #include "context.h"
 
-int parse(void *inst_id, struct stage_fn *sfn,
+int parse(struct stage_fn *sfn,
           struct packet_context *in_ctx, 
           struct packet_context *out_ctx)
 {
@@ -16,7 +16,7 @@ int parse(void *inst_id, struct stage_fn *sfn,
 	struct counter *glb_counters = get_counters();
 	if (in_ctx->location.framesz < sizeof(struct eth_hdr)) {
 		COUNTER_ATOMIC_INC(glb_counters->drop_frame_invalid);
-		sfn->free_fb(inst_id, in_ctx->location.fb_id);
+		sfn->free_fb(in_ctx->location.fb_id);
 		return 1;
 	}
 	
@@ -26,7 +26,7 @@ int parse(void *inst_id, struct stage_fn *sfn,
 	if (lkp->is_tagged) {
 		if (in_ctx->location.framesz < sizeof(*eth_vlan)) {
 			COUNTER_ATOMIC_INC(glb_counters->drop_frame_invalid);
-			sfn->free_fb(inst_id, in_ctx->location.fb_id);
+			sfn->free_fb(in_ctx->location.fb_id);
 			return 1;
 		}
 		/* Translate from the network big endian to a representation 
@@ -43,7 +43,7 @@ int parse(void *inst_id, struct stage_fn *sfn,
 	if (is_bcast_mac(&lkp->src_mac)) {
 		/* If the sender's address is broadcast, drop the packet. */
 		COUNTER_ATOMIC_INC(glb_counters->drop_frame_invalid);
-		sfn->free_fb(inst_id, in_ctx->location.fb_id);
+		sfn->free_fb(in_ctx->location.fb_id);
 		return 1;
 	}
 	memcpy(lkp->dst_mac.octets, eth_vlan->dst, sizeof(lkp->dst_mac.octets));

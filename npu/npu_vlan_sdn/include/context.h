@@ -51,17 +51,7 @@ struct resolve_dst_ctx {
     struct vlan_node_item items[ETH_PORTS_NR];
 };
 
-struct replicate_ctx {
-    uint8_t is_tagged:1;
-    uint16_t vlan_vid;
-    uint16_t vlan_pcp;
 
-    struct {
-        uint8_t ports[ETH_PORTS_NR];
-        uint8_t mode[ETH_PORTS_NR];
-        uint8_t count;
-    } list;
-};
 
 struct learn_ctx {
     struct ethaddr src_mac;

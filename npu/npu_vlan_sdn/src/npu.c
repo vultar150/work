@@ -7,8 +7,7 @@
 #include "stages.h"
 #include "table.h"
 
-void process_model(uint8_t in_port_nr,
-                   struct io_fn *io, 
+void process_model(uint8_t in_port_nr, 
                    struct packet_context *prs_ctx,
                    struct stage_fn *sfn)
 {
@@ -22,16 +21,16 @@ void process_model(uint8_t in_port_nr,
         .search_rd = lookup_switch
     };
 
-    if (parse(NULL, sfn, prs_ctx, &lkp_ctx))
+    if (parse(sfn, prs_ctx, &lkp_ctx))
         return;
 
-    rr = match_action_src(NULL, sfn, &lfn, &lkp_ctx, &rsv_ctx, &repl_ctx);
+    rr = match_action_src(sfn, &lfn, &lkp_ctx, &repl_ctx, &rsv_ctx);
     if (rr.out_port >= 0) {
-        replicator(NULL, sfn, &repl_ctx);
+        replicator(sfn, &repl_ctx);
     }
 
-    if (match_action_dst(NULL, sfn, &lfn, &lkp_ctx, &rsv_ctx, &repl_ctx).drop)
+    if (match_action_dst(sfn, &lfn, &rsv_ctx, &repl_ctx, &lkp_ctx).drop)
         return;
 
-    replicator(NULL, sfn, &repl_ctx);
+    replicator(sfn, &repl_ctx);
 }

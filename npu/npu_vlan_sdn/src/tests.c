@@ -114,9 +114,9 @@ int test_broadcast(struct output_frame_context *out_frames,
 
     reset_output_frame_buffers();
     mac_load_frame(0, frame1, sizeof(frame1));
-    if (receive(NULL, 0, &prs_ctx, &io, &sfn))
+    if (receive(0, &prs_ctx, &io, &sfn))
         return 1;
-    process_model(0, &io, &prs_ctx, &sfn);
+    process_model(0, &prs_ctx, &sfn);
     transmit(&io);
 
     for (int i = 0; i < ETH_PORTS_NR; i++) {
@@ -126,9 +126,9 @@ int test_broadcast(struct output_frame_context *out_frames,
 
     reset_output_frame_buffers();
     mac_load_frame(0, frame2, sizeof(frame2));
-    if (receive(NULL, 0, &prs_ctx, &io, &sfn))
+    if (receive(0, &prs_ctx, &io, &sfn))
         return 1;
-    process_model(0, &io, &prs_ctx, &sfn);
+    process_model(0, &prs_ctx, &sfn);
     transmit(&io);
 
     for (int i = 0; i < ETH_PORTS_NR; i++) {
@@ -228,9 +228,9 @@ int test_learn(struct output_frame_context *out_frames,
 
     reset_output_frame_buffers();
     mac_load_frame(1, frame1, sizeof(frame1));
-    if (receive(NULL, 1, &prs_ctx, &io, &sfn))
+    if (receive(1, &prs_ctx, &io, &sfn))
         return 1;
-    process_model(1, &io, &prs_ctx, &sfn);
+    process_model(1, &prs_ctx, &sfn);
     transmit(&io);
 
     for (int i = 0; i < ETH_PORTS_NR; i++) {
@@ -264,9 +264,9 @@ int test_learn(struct output_frame_context *out_frames,
 
     reset_output_frame_buffers();
     mac_load_frame(5, frame2, sizeof(frame2));
-    if (receive(NULL, 5, &prs_ctx, &io, &sfn))
+    if (receive(5, &prs_ctx, &io, &sfn))
         return 1;
-    process_model(5, &io, &prs_ctx, &sfn);
+    process_model(5, &prs_ctx, &sfn);
     transmit(&io);
 
     for (int i = 0; i < ETH_PORTS_NR; i++) {
@@ -323,9 +323,9 @@ int test_vlan(struct output_frame_context *out_frames,
 
     reset_output_frame_buffers();
     mac_load_frame(4, frame, sizeof(frame));
-    if (receive(NULL, 4, &prs_ctx, &io, &sfn))
+    if (receive(4, &prs_ctx, &io, &sfn))
         return 1;
-    process_model(4, &io, &prs_ctx, &sfn);
+    process_model(4, &prs_ctx, &sfn);
     transmit(&io);
 
     for (int i = 0; i < ETH_PORTS_NR; i++) {
@@ -370,9 +370,9 @@ int test_drop(struct output_frame_context *out_frames,
 
     reset_output_frame_buffers();
     mac_load_frame(2, frame, sizeof(frame));
-    if (receive(NULL, 2, &prs_ctx, &io, &sfn))
+    if (receive(2, &prs_ctx, &io, &sfn))
         return 1;
-    process_model(2, &io, &prs_ctx, &sfn);
+    process_model(2, &prs_ctx, &sfn);
     transmit(&io);
 
     for (int i = 0; i < ETH_PORTS_NR; i++) {

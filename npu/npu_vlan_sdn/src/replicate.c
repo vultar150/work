@@ -3,18 +3,14 @@
 
 #include "context.h"
 
-static void add_tag(void *,
-                    struct frame_buffer *, struct buf_info *,
+static void add_tag(struct frame_buffer *, struct buf_info *,
                     uint16_t, uint16_t, uint16_t vlan_pcp,
                     struct stage_fn *mem);
 
-static void del_tag(void *,
-                    struct frame_buffer *, struct buf_info *,
-                    uint16_t,
-                    struct stage_fn *mem);
+static void del_tag(struct frame_buffer *, struct buf_info *,
+                    uint16_t, struct stage_fn *mem);
 
-void replicate(void *inst_id, struct stage_fn *sfn,
-               struct packet_context *in_ctx)
+void replicate(struct stage_fn *sfn, struct packet_context *in_ctx)
 {
     struct replicate_ctx *in = (void *) in_ctx->stage_context;
 
@@ -58,8 +54,7 @@ void replicate(void *inst_id, struct stage_fn *sfn,
     sfn->free(inst_id, in_ctx->location.fb_id);
 }
 
-static void del_tag(void *inst_id,
-                    struct frame_buffer *fb, struct buf_info *new_buf,
+static void del_tag(struct frame_buffer *fb, struct buf_info *new_buf,
                     uint16_t framesz, struct stage_fn *mem)
 {
     struct counter *glb_counters = get_counters();
@@ -82,8 +77,7 @@ static void del_tag(void *inst_id,
            - 2 * sizeof(uint16_t));
 }
 
-static void add_tag(void *inst_id,
-                    struct frame_buffer *fb, struct buf_info *new_buf,
+static void add_tag(struct frame_buffer *fb, struct buf_info *new_buf,
                     uint16_t framesz, uint16_t vlan_vid, uint16_t vlan_pcp,
                     struct stage_fn *mem)
 {
