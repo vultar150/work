@@ -25,8 +25,6 @@ int test_vlan(struct output_frame_context *,
  * Then another frame comes to port 5 with vlan tag 2 
  * and a known destination mac address. 
  * Expect it to be sent only to port 1 without the tag. */
-
-
 int test_learn(struct output_frame_context *,
                struct output_frame_context *);
 
