@@ -11,7 +11,8 @@ int main(int argc, char **argv)
         test_vlan,
         test_learn,
         test_drop,
-        test_push_vlan
+        test_push_vlan,
+        test_set_vlan
     };
 
     for (int i = 0; i < ARRAY_SIZE(tests); i++) {

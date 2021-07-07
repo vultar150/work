@@ -18,12 +18,15 @@ __attribute__((warn_unused_result))
 #endif
 ;
 
-static int del_tag(int8_t *fb, uint16_t framesz, uint8_t offset,
-                   uint8_t tagsz, uint8_t is_tagged)
-#if defined(__GNUC__)
-__attribute__((warn_unused_result))
-#endif
-;
+static void del_tag(int8_t *fb, uint16_t framesz, uint8_t offset,
+                   uint8_t tagsz, uint8_t is_tagged);
+// #if defined(__GNUC__)
+// __attribute__((warn_unused_result))
+// #endif
+// ;
+
+void set_tag(int8_t *fb, uint16_t framesz, uint8_t offset, 
+             uint8_t *tag, uint8_t tagsz, uint8_t is_tagged);
 
 static void lookup_flow_actions(struct flow_table *, struct ethaddr*, 
                                 uint16_t,  struct res *, uint8_t);
@@ -184,14 +187,20 @@ struct resolve_result match_action_dst(struct stage_fn *sfn,
                 tmp.sz += rsv->is_tagged ? 0 : sizeof(vlan_tag);
                 break;
 
+            case ACTION_SET_VLAN:
+                pcp_vid = (uint16_t) r->actions[i].value;
+                vlan_tag[2] = pcp_vid >> 8;
+                vlan_tag[3] = pcp_vid & 0xff;
+                set_tag(tmp.data, tmp.sz,
+                        MEMBER_SIZE(struct eth_hdr, dst) + MEMBER_SIZE(struct eth_hdr, src), 
+                        vlan_tag, sizeof(vlan_tag), rsv->is_tagged);
+                break;
+
             case ACTION_POP_VLAN:
-                if (del_tag(tmp.data, tmp.sz,
-                            MEMBER_SIZE(struct eth_hdr, dst) + MEMBER_SIZE(struct eth_hdr, src),
-                            sizeof(vlan_tag), rsv->is_tagged)) {
-                    sfn->free_fb(in_ctx->location.fb_id);
-                    result.drop = 1;
-                    return result;
-                }
+                del_tag(tmp.data, tmp.sz, 
+                        MEMBER_SIZE(struct eth_hdr, dst) + MEMBER_SIZE(struct eth_hdr, src),
+                        sizeof(vlan_tag), rsv->is_tagged); 
+
                 tmp.sz -= rsv->is_tagged ? sizeof(vlan_tag) : 0;
                 break;
 
@@ -356,12 +365,21 @@ int add_tag(int8_t *fb, uint16_t fb_size, uint16_t framesz, uint8_t offset,
     return 0;
 }
 
-static int del_tag(int8_t *fb, uint16_t framesz, uint8_t offset,
+void set_tag(int8_t *fb, uint16_t framesz, uint8_t offset, 
+             uint8_t *tag, uint8_t tagsz, uint8_t is_tagged)
+{
+    if (!is_tagged) {
+        return;
+    }
+    memcpy(fb + offset, tag, tagsz);
+    return;
+}
+
+static void del_tag(int8_t *fb, uint16_t framesz, uint8_t offset,
                    uint8_t tagsz, uint8_t is_tagged)
 {
     if (!is_tagged) {
-        return 0;
+        return;
     }
     memcpy(fb + offset, fb + offset + tagsz, framesz - offset - tagsz);
-    return 0;
 }

@@ -45,4 +45,12 @@ int test_drop(struct output_frame_context *,
 int test_push_vlan(struct output_frame_context *out_frames,
                    struct output_frame_context *ctrl_frame);
 
+/* Add some entry to flow tables with specific mac, vlan 1 
+ * and actions for dst table: ACTION_SET_VLAN 2, ACTION_OUTPUT 5.
+ * At port 0 comes the frame with vlan tag 1 and with dst mac addr of 
+ * added entry.
+ * Expect it to be sent only to port 5 with changed vlan tag 2 */
+int test_set_vlan(struct output_frame_context *out_frames,
+                  struct output_frame_context *ctrl_frame);
+
 #endif //NPU_VLAN_SDN_TESTS_H
