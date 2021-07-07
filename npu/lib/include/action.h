@@ -1,5 +1,4 @@
-#ifndef NPU_LIB_ACTION_H
-#define NPU_LIB_ACTION_H
+#pragma once
 
 typedef enum action_type_e {
     ACTION_NONE = -1,             ///< No action (useful for testing)
@@ -45,4 +44,3 @@ typedef struct instr_s {
     action_value_t value;
 } instr_t;
 
-#endif //NPU_LIB_ACTION_H
