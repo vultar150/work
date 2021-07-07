@@ -8,8 +8,10 @@
 #include "context.h"
 #include "table.h"
 
+#include <stdio.h>
 
-int add_tag(int8_t *fb, uint16_t framesz, uint8_t offset,
+
+int add_tag(int8_t *fb, uint16_t fb_size, uint16_t framesz, uint8_t offset,
             uint8_t *tag, uint8_t tagsz, uint8_t is_tagged)
 #if defined(__GNUC__)
 __attribute__((warn_unused_result))
@@ -144,8 +146,9 @@ struct resolve_result match_action_dst(struct stage_fn *sfn,
     result.out_port = 1;
     result.next_stage = contains(&sr, INSTR_GOTO_TABLE);
 
-    uint8_t vlan_tag[4] = { 0x81, 0x00,
-                            rsv->vlan_pcp | rsv->vlan_vid >> 8, rsv->vlan_vid & 0xff };
+    uint8_t vlan_tag[4] = { 0x81, 0x00, 
+                            rsv->vlan_pcp | rsv->vlan_vid >> 8, 
+                            rsv->vlan_vid & 0xff }; 
 
     /* Perform all actions obtained from the dst flow table:
      * If table doesn't contain ACTION_GROUP, then send 
@@ -155,15 +158,23 @@ struct resolve_result match_action_dst(struct stage_fn *sfn,
     if (contains(&sr, ACTION_GROUP)) {
         sk.table_nr = GROUP_TABLE;
         sr = lfn->search_rd(sk);
+        if (sr.not_found) {
+            result.drop = 1;
+            return result;
+        }
     }
 
     struct res *r = (void *) sr.res_entry;
     struct header tmp = in_ctx->header;
+    uint16_t pcp_vid;
 
     for (int i = 0; i < r->len; i++) {
         switch (r->actions[i].type) {
-            case ACTION_PUSH_VLAN: 
-                if (add_tag(tmp.data, tmp.sz,
+            case ACTION_PUSH_VLAN:
+                pcp_vid = (uint16_t) r->actions[i].value;              
+                vlan_tag[2] = pcp_vid >> 8;
+                vlan_tag[3] = pcp_vid & 0xff;
+                if (add_tag(tmp.data, sizeof(tmp.data), tmp.sz,
                         MEMBER_SIZE(struct eth_hdr, dst) + MEMBER_SIZE(struct eth_hdr, src),
                         vlan_tag, sizeof(vlan_tag), rsv->is_tagged)) {
                     sfn->free_fb(in_ctx->location.fb_id);
@@ -276,6 +287,7 @@ static uint8_t group_table_search(uint16_t tag, struct res *r)
     for (int i = 0; i < tbl->len; i++) {
         if (tbl->nodes[i].group_id == tag) {
             entry = &(tbl->nodes[i]);
+            entry->cc++;
             set_entry_actions_from_group_buckets(entry, r);
             return r->len;
         }
@@ -324,14 +336,14 @@ struct search_result lookup_flow(struct search_key sk)
     return sr;
 }
 
-int add_tag(int8_t *fb, uint16_t framesz, uint8_t offset,
+int add_tag(int8_t *fb, uint16_t fb_size, uint16_t framesz, uint8_t offset,
             uint8_t *tag, uint8_t tagsz, uint8_t is_tagged)
 {
     if (is_tagged) {
         return 0;
     }
     struct counter *glb_counters = get_counters();
-    if (framesz + tagsz > sizeof(*fb)) {
+    if (framesz + tagsz > fb_size) {
         COUNTER_ATOMIC_INC(glb_counters->drop_frame_too_long);
         return 1;
     }

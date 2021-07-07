@@ -21,7 +21,7 @@ int test_vlan(struct output_frame_context *,
  * 2) to port 4 with the tag
  * 3) to port 5 with the tag
  * + sending a special packet to the controller, which will then 
- * add the necessary entries to the mac address tables. 
+ * add the necessary entries to flow tables. 
  * Then another frame comes to port 5 with vlan tag 2 
  * and a known destination mac address. 
  * Expect it to be sent only to port 1 without the tag. */
@@ -33,5 +33,16 @@ int test_learn(struct output_frame_context *,
  * where vlan 3 is allowed. */
 int test_drop(struct output_frame_context *,
               struct output_frame_context *);
+
+/* At port 5 comes the frame with no vlan tag.
+ * Expect to send a packet to ports 2 and 6.
+ * After that sending a special packet to the controller, which will
+ * then add the necessary entries to flow tables (for dst flow table 
+ * action list is: ACTION_PUSH_VLAN 1, ACTION_OUTPUT 5). Then
+ * another frame comes to port 0 with no vlan tag and with 
+ * dst_mac = src_mac of first frame. Expect it to be sent 
+ * only to port 5 with vlan tag 1 */
+int test_push_vlan(struct output_frame_context *out_frames,
+                   struct output_frame_context *ctrl_frame);
 
 #endif //NPU_VLAN_SDN_TESTS_H

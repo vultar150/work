@@ -7,6 +7,8 @@
 #include "stages.h"
 #include "table.h"
 
+#include <stdio.h>
+
 
 void process_model(uint8_t in_port_nr, 
                    struct packet_context *prs_ctx,

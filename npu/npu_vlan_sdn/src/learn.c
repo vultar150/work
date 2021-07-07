@@ -3,6 +3,8 @@
 #include "table.h"
 #include "context.h"
 
+#include <stdio.h>
+
 
 void learn(struct learn_ctx *in) 
 {
@@ -22,8 +24,7 @@ void learn(struct learn_ctx *in)
         node->vlan_tag = in->vlan_tag;
         node->cc = 0;
         for (int j = 0; j < in->act_len_src; j++) {
-            node->actions[j].type = in->actions_src[j].type;
-            node->actions[j].value = in->actions_src[j].value;
+            node->actions[j] = in->actions_src[j];
         }
         node->act_len = in->act_len_src;
         node->valid = 1;
@@ -48,8 +49,7 @@ void learn(struct learn_ctx *in)
         node->vlan_tag = in->vlan_tag;
         node->cc = 0;
         for (int j = 0; j < in->act_len_dst; j++) {
-            node->actions[j].type = in->actions_dst[j].type;
-            node->actions[j].value = in->actions_dst[j].value;
+            node->actions[j] = in->actions_dst[j];
         }
         node->act_len = in->act_len_dst;
         node->valid = 1;

@@ -10,7 +10,8 @@ int main(int argc, char **argv)
         test_broadcast,
         test_vlan,
         test_learn,
-        test_drop
+        test_drop,
+        test_push_vlan
     };
 
     for (int i = 0; i < ARRAY_SIZE(tests); i++) {
