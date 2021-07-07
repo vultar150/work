@@ -3,78 +3,59 @@
 #include "table.h"
 #include "context.h"
 
-void learn(struct learn_ctx *in)
+
+void learn(struct learn_ctx *in) 
 {
-    struct hashnode *hdel, **hh, *hnodes, *hn;
-    struct hashtable *table;
-    uint32_t src_hash;
-    void *mem;
-
-    /* Start adding a new record to source MAC hashtable. */
-    mem = src_table_mmap();
-    table = mem;
-
-    /* Get the pointer to memory area with nodes of the hashtable. */
-    hnodes = (void *)((uint8_t *) mem + sizeof(*table));
-
-    if (table->next_node == HASHNODE_COUNT)
-        table->next_node = 0;
-
-    hdel = hnodes + table->next_node;
-
-    /* Calculate hash of MAC address and lock the corresponding hashnode. */
-    src_hash = get_mac_hash(&hdel->mac);
-
-    for (hh = get_head_p(table, src_hash); *hh; hh = get_next_p(hh)) {
-        if (*hh == hdel) {
-            *hh = hdel->next;
+    /* Add entry to src flow table */
+    struct flow_table *table = src_flow_table_mmap();
+    int inp_idx = 0; /* index of input place */
+    while (inp_idx < table->len) {
+        if (!table->nodes[inp_idx].valid) {
             break;
+        }
+        inp_idx++;
+    }
+
+    if (inp_idx < MAX_FLOW_TABLE_SIZE) {
+        flow_entry_t *node = &(table->nodes[inp_idx]);
+        node->mac = in->src_mac;
+        node->vlan_tag = in->vlan_tag;
+        node->cc = 0;
+        for (int j = 0; j < in->act_len_src; j++) {
+            node->actions[j].type = in->actions_src[j].type;
+            node->actions[j].value = in->actions_src[j].value;
+        }
+        node->act_len = in->act_len_src;
+        node->valid = 1;
+        if (inp_idx == table->len) {
+            table->len++;
         }
     }
 
-    while (hdel->next) {
-        if (hdel->cc == 0)
-            hdel->next = NULL;
-    }
-
-    hn = hnodes + table->next_node++;
-
-    hn->mac = in->src_mac;
-    hn->port = in->src_port;
-    hn->vlan = in->vlan_tag;
-    hn->next = HASHTABLE_GET(table, in->src_hash);
-    HASHTABLE_GET(table, in->src_hash) = hn;
-
-    /* The same actions are performed to add a new record
-     * to destination MAC hashtable. */
-    mem = dst_table_mmap();
-    table = mem;
-    hnodes = (void *)((uint8_t *) mem + sizeof(*table));
-
-    if (table->next_node == HASHNODE_COUNT)
-        table->next_node = 0;
-
-    hdel = hnodes + table->next_node;
-
-    src_hash = get_mac_hash(&hdel->mac);
-
-    for (hh = get_head_p(table, src_hash); *hh; hh = get_next_p(hh)) {
-        if (*hh == hdel) {
-            *hh = hdel->next;
+    /* Add entry to dst flow table */
+    table = dst_flow_table_mmap();
+    inp_idx = 0;
+    while (inp_idx < table->len) {
+        if (!table->nodes[inp_idx].valid) {
             break;
         }
+        inp_idx++;
     }
 
-    while (hdel->next) {
-        if (hdel->cc == 0)
-            hdel->next = NULL;
+    if (inp_idx < MAX_FLOW_TABLE_SIZE) {
+        flow_entry_t *node = &(table->nodes[inp_idx]);
+        node->mac = in->src_mac;
+        node->vlan_tag = in->vlan_tag;
+        node->cc = 0;
+        for (int j = 0; j < in->act_len_dst; j++) {
+            node->actions[j].type = in->actions_dst[j].type;
+            node->actions[j].value = in->actions_dst[j].value;
+        }
+        node->act_len = in->act_len_dst;
+        node->valid = 1;
+        if (inp_idx == table->len) {
+            table->len++;
+        }
     }
-
-    hn = hnodes + table->next_node++;
-
-    hn->mac = in->src_mac;
-    hn->port = in->src_port;
-    hn->vlan = in->vlan_tag;
-    hn->next = HASHTABLE_GET(table, in->src_hash);
-    HASHTABLE_GET(table, in->src_hash) = hn;
 }
+
