@@ -20,55 +20,88 @@ struct stage_fn sfn = {
 
 struct packet_context prs_ctx;
 
-
-void init_vlan_table(void)
+void init_src_flow_table(void) 
 {
-    struct vlan_node_item node1_0 =
-        { .port = 0, .mode = NO_TAG };
+    struct flow_table *table = src_flow_table_mmap();
+    table->len = 0;
+}
 
-    struct vlan_node_item node1_2 =
-        { .port = 5, .mode = NEED_TAG };
+void init_dst_flow_table(void) 
+{
+    struct flow_table *table = dst_flow_table_mmap();
+    table->len = 0;
+}
 
-    struct vlan_node_item node1_1 =
-        { .port = 4, .mode = NEED_TAG };
+void init_group_table(void) {
+    struct group_table *table = group_table_mmap();
+    table->nodes[0].group_id = 1;
+    table->nodes[0].type = ALL;
+    table->nodes[0].cc = 0;
+    table->nodes[0].buckets[0].actions[0].type = ACTION_POP_VLAN;
+    table->nodes[0].buckets[0].actions[0].value = 0;
+    table->nodes[0].buckets[0].actions[1].type = ACTION_OUTPUT;
+    table->nodes[0].buckets[0].actions[1].value = 0;
+
+    table->nodes[0].buckets[0].actions[2].type = ACTION_PUSH_VLAN;
+    table->nodes[0].buckets[0].actions[2].value = 0x81000001;
+    table->nodes[0].buckets[0].actions[3].type = ACTION_OUTPUT;
+    table->nodes[0].buckets[0].actions[3].value = 4;
+
+    table->nodes[0].buckets[0].actions[4].type = ACTION_PUSH_VLAN;
+    table->nodes[0].buckets[0].actions[4].value = 0x81000001;
+    table->nodes[0].buckets[0].actions[5].type = ACTION_OUTPUT;
+    table->nodes[0].buckets[0].actions[5].value = 5;
+
+    table->nodes[0].buckets[0].act_len = 6;
+
+    table->nodes[0].buck_len = 1;
 
 
-    struct vlan_node_item node2_0 =
-        { .port = 1, .mode = NO_TAG };
+    table->nodes[1].group_id = 2;
+    table->nodes[1].type = ALL;
+    table->nodes[1].cc = 0;
+    table->nodes[1].buckets[0].actions[0].type = ACTION_POP_VLAN;
+    table->nodes[1].buckets[0].actions[0].value = 0;
+    table->nodes[1].buckets[0].actions[1].type = ACTION_OUTPUT;
+    table->nodes[1].buckets[0].actions[1].value = 1;
 
-    struct vlan_node_item node2_1 =
-        { .port = 3, .mode = NO_TAG };
+    table->nodes[1].buckets[0].actions[2].type = ACTION_POP_VLAN;
+    table->nodes[1].buckets[0].actions[2].value = 0;
+    table->nodes[1].buckets[0].actions[3].type = ACTION_OUTPUT;
+    table->nodes[1].buckets[0].actions[3].value = 3;
 
-    struct vlan_node_item node2_2 =
-        { .port = 4, .mode = NEED_TAG };
+    table->nodes[1].buckets[0].actions[4].type = ACTION_PUSH_VLAN;
+    table->nodes[1].buckets[0].actions[4].value = 0x81000002;
+    table->nodes[1].buckets[0].actions[5].type = ACTION_OUTPUT;
+    table->nodes[1].buckets[0].actions[5].value = 4;
 
-    struct vlan_node_item node2_3 =
-        { .port = 5, .mode = NEED_TAG };
+    table->nodes[1].buckets[0].actions[6].type = ACTION_PUSH_VLAN;
+    table->nodes[1].buckets[0].actions[6].value = 0x81000002;
+    table->nodes[1].buckets[0].actions[7].type = ACTION_OUTPUT;
+    table->nodes[1].buckets[0].actions[7].value = 5;
 
+    table->nodes[1].buckets[0].act_len = 8;
 
-    struct vlan_node_item node_off_0 =
-        { .port = 2, .mode = NO_TAG };
+    table->nodes[1].buck_len = 1;
 
-    struct vlan_node_item node_off_1 =
-        { .port = 6, .mode = NO_TAG };
+    table->nodes[2].group_id = VLAN_NONE;
+    table->nodes[2].type = ALL;
+    table->nodes[2].cc = 0;
+    table->nodes[2].buckets[0].actions[0].type = ACTION_POP_VLAN;
+    table->nodes[2].buckets[0].actions[0].value = 0;
+    table->nodes[2].buckets[0].actions[1].type = ACTION_OUTPUT;
+    table->nodes[2].buckets[0].actions[1].value = 2;
 
+    table->nodes[2].buckets[0].actions[2].type = ACTION_POP_VLAN;
+    table->nodes[2].buckets[0].actions[2].value = 0;
+    table->nodes[2].buckets[0].actions[3].type = ACTION_OUTPUT;
+    table->nodes[2].buckets[0].actions[3].value = 6;
 
-    struct vlan_table *tbl = vlan_table_mmap();
+    table->nodes[2].buckets[0].act_len = 4;
 
-    tbl->nodes[1].items[0] = node1_0;
-    tbl->nodes[1].items[1] = node1_1;
-    tbl->nodes[1].items[2] = node1_2;
-    tbl->nodes[1].len = 3;
+    table->nodes[2].buck_len = 1;
 
-    tbl->nodes[2].items[0] = node2_0;
-    tbl->nodes[2].items[1] = node2_1;
-    tbl->nodes[2].items[2] = node2_2;
-    tbl->nodes[2].items[3] = node2_3;
-    tbl->nodes[2].len = 4;
-
-    tbl->nodes[VLAN_NONE].items[0] = node_off_0;
-    tbl->nodes[VLAN_NONE].items[1] = node_off_1;
-    tbl->nodes[VLAN_NONE].len = 2;
+    table->len = 3;
 }
 
 int test_broadcast(struct output_frame_context *out_frames,
@@ -110,7 +143,9 @@ int test_broadcast(struct output_frame_context *out_frames,
             0x01, 0x03, 0x03, 0x07
     };
 
-    init_vlan_table();
+    init_src_flow_table();
+    init_dst_flow_table();
+    init_group_table();
 
     reset_output_frame_buffers();
     mac_load_frame(0, frame1, sizeof(frame1));
@@ -132,20 +167,25 @@ int test_broadcast(struct output_frame_context *out_frames,
     transmit(&io);
 
     for (int i = 0; i < ETH_PORTS_NR; i++) {
-        if (i == 2 || i == 6)
+        if (i == 2 || i == 6) {
             continue;
+        }
 
-        if (out_frames[i].frame.size)
+        if (out_frames[i].frame.size) {
             return 1;
+        }
     }
 
+
     if (out_frames[6].frame.size != sizeof(frame2) ||
-        memcmp(frame2, out_frames[6].frame.buf, sizeof(frame2)) != 0)
+        memcmp(frame2, out_frames[6].frame.buf, sizeof(frame2)) != 0) {
         return 1;
+    }   
 
     if (out_frames[2].frame.size != sizeof(frame2) ||
-        memcmp(frame2, out_frames[2].frame.buf, sizeof(frame2)) != 0)
+        memcmp(frame2, out_frames[2].frame.buf, sizeof(frame2)) != 0) {
         return 1;
+    }
 
     return 0;
 }
@@ -254,12 +294,31 @@ int test_learn(struct output_frame_context *out_frames,
         memcmp(frame1, out_frames[5].frame.buf, sizeof(frame1)) != 0)
         return 1;
 
+
     struct learn_ctx lrn;
     struct ctrl_lrn_pkt *pkt = (void *) ctrl_frame->frame.buf;
     memcpy(lrn.src_mac.octets, pkt->mac, sizeof(lrn.src_mac.octets));
-    lrn.src_port = pkt->port;
+
     lrn.vlan_tag = pkt->vlan_tag;
-    lrn.src_hash = pkt->src_hash;
+
+    lrn.actions_src[0].type = ACTION_OUTPUT;
+    lrn.actions_src[0].value = pkt->port;
+    lrn.actions_src[1].type = INSTR_GOTO_TABLE;
+    lrn.actions_src[1].value = 1;
+    lrn.act_len_src = 2;
+
+    if (pkt->port == 4 || pkt->port == 5) {
+        lrn.actions_dst[0].type = ACTION_PUSH_VLAN;
+        lrn.actions_dst[0].value = 1;
+    } else {
+        lrn.actions_dst[0].type = ACTION_POP_VLAN;
+        lrn.actions_dst[0].value = 1;
+    }
+    lrn.actions_dst[1].type = ACTION_OUTPUT;
+    lrn.actions_dst[1].value = pkt->port;
+
+    lrn.act_len_dst = 2;
+
     learn(&lrn);
 
     reset_output_frame_buffers();
@@ -338,12 +397,14 @@ int test_vlan(struct output_frame_context *out_frames,
 
     if (out_frames[0].frame.size != sizeof(frame_untagged) ||
         memcmp(frame_untagged, out_frames[0].frame.buf,
-               sizeof(frame_untagged)) != 0)
+               sizeof(frame_untagged)) != 0) {
         return 1;
+    }
 
     if (out_frames[5].frame.size != sizeof(frame) ||
-        memcmp(frame, out_frames[5].frame.buf, sizeof(frame)) != 0)
+        memcmp(frame, out_frames[5].frame.buf, sizeof(frame)) != 0) {
         return 1;
+    }
 
     return 0;
 }
