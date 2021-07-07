@@ -1,31 +1,40 @@
+#include <assert.h>
+
 #include <lib/include/replicator.h>
 #include "lib/include/helpers.h"
 #include "lib/include/memory.h"
+#include "lib/include/action.h"
 
 #include "context.h"
 #include "table.h"
 
 
 int add_tag(int8_t *fb, uint16_t framesz, uint8_t offset,
-            uint8_t *tag, uint8_t tagsz)
+            uint8_t *tag, uint8_t tagsz, uint8_t is_tagged)
 #if defined(__GNUC__)
 __attribute__((warn_unused_result))
 #endif
 ;
 
 static int del_tag(int8_t *fb, uint16_t framesz, uint8_t offset,
-                   uint8_t tagsz)
+                   uint8_t tagsz, uint8_t is_tagged)
 #if defined(__GNUC__)
 __attribute__((warn_unused_result))
 #endif
 ;
 
-static tag_task_t add_to_resolve_list(uint8_t is_tagged,
-                                struct vlan_node_item *);
+static void lookup_flow_actions(struct flow_table *, struct ethaddr*, 
+                                uint16_t,  struct res *, uint8_t);
 
-static uint8_t lookup_port(struct hashtable *, uint32_t,
-						   struct ethaddr *, uint16_t);
+static void set_entry_actions_from_group_buckets(group_entry_t *, struct res *);
 
+static uint8_t group_table_search(uint16_t, struct res *);
+
+static uint8_t contains(struct search_result *, action_type_t);
+
+static uint8_t get_action_port(struct search_result *);
+
+// static uint16_t get_group_id(struct search_result *);
 
 struct resolve_result match_action_src(struct stage_fn *sfn,
                                        struct lookup_fn *lfn,
@@ -42,7 +51,6 @@ struct resolve_result match_action_src(struct stage_fn *sfn,
 
     rsv->src_mac = lkp->src_mac;
     rsv->dst_mac = lkp->dst_mac;
-    rsv->src_hash = get_mac_hash(&lkp->src_mac);
 
     rsv->is_tagged = lkp->is_tagged;
     rsv->vlan_vid = lkp->vlan_vid;
@@ -52,18 +60,18 @@ struct resolve_result match_action_src(struct stage_fn *sfn,
     sk.table_nr = SRC_TABLE;
 
     struct key *k = (void *) sk.key;
-    k->hash = rsv->src_hash;
     k->mac = lkp->src_mac;
     k->tag = lkp->vlan_vid;
 
-    rsv->src_table_port = lfn->search_rd(sk).res_entry[0];
+    struct search_result sr = lfn->search_rd(sk);
 
     struct lookup_dst_ctx *lkp_dst = (void *) in_ctx->stage_context;
 
     struct resolve_result res;
-    res.next_stage = 1;
+
+    res.next_stage = contains(&sr, INSTR_GOTO_TABLE);
     res.out_port = -1;
-    res.drop = 0;
+    res.drop = contains(&sr, ACTION_DROP);
 
     lkp_dst->src_port = rsv->src_port;
 
@@ -73,8 +81,11 @@ struct resolve_result match_action_src(struct stage_fn *sfn,
 
     lkp_dst->dst_mac = rsv->dst_mac;
 
-    if (rsv->src_port == rsv->src_table_port)
+    rsv->src_table_port = get_action_port(&sr);
+
+    if (rsv->src_port == rsv->src_table_port) {
         return res;
+    }
 
     init_context(repl_ctx);
     uint32_t fb_id = sfn->alloc_fb();
@@ -95,7 +106,7 @@ struct resolve_result match_action_src(struct stage_fn *sfn,
     repl_ctx->list[0].ports[0] = CTRL_PORT;
     repl_ctx->location.fb_id = fb_id;
     repl_ctx->location.framesz = out_ctx->location.framesz;
-
+    
     res.out_port = CTRL_PORT;
     return res;
 }
@@ -110,94 +121,78 @@ struct resolve_result match_action_dst(struct stage_fn *sfn,
     struct lookup_dst_ctx *lkp = (void *) lkp_ctx->stage_context;
     struct resolve_dst_ctx *rsv = (void *) in_ctx->stage_context;
 
-    // rsv->src_port = lkp->src_port;
+    rsv->src_port = lkp->src_port;
 
-    // rsv->is_tagged = lkp->is_tagged;
-    // rsv->vlan_vid = lkp->vlan_vid;
-    // rsv->vlan_pcp = lkp->vlan_pcp;
+    rsv->is_tagged = lkp->is_tagged;
+    rsv->vlan_vid = lkp->vlan_vid;
+    rsv->vlan_pcp = lkp->vlan_pcp;
 
     struct search_key sk;
     struct key *k = (void *) sk.key;
 
-    if (!is_bcast_mac(&lkp->dst_mac)) {
-        /* We look in the hash table for the port 
-         * to which we want to send the packet.*/
-        sk.table_nr = DST_TABLE;
-        k->hash = get_mac_hash(&lkp->dst_mac);
-        k->mac = lkp->dst_mac;
-        k->tag = lkp->vlan_vid;
-
-        rsv->dst_port = lfn->search_rd(sk).res_entry[0];
-    } else {
-        rsv->dst_port = PORT_NOT_FOUND;
-    }
-
-    sk.table_nr = VLAN_TABLE;
+    sk.table_nr = DST_TABLE;
+    k->mac = lkp->dst_mac;
     k->tag = lkp->vlan_vid;
-    k->src_port = lkp->src_port;
-    k->dst_port = rsv->dst_port;
 
     struct search_result sr = lfn->search_rd(sk);
-    struct res *r = (void *) sr.res_entry;
-    rsv->len = r->len;
-    if (rsv->len)
-        memcpy(rsv->items, r->items, rsv->len * sizeof(rsv->items[0]));
-
-    struct resolve_result result;
-    result.drop = 0;
-    result.out_port = 1;
-    result.next_stage = 0;
 
     init_context(repl_ctx);
     repl_ctx->location = in_ctx->location;
 
+    struct resolve_result result;
+    result.drop = contains(&sr, ACTION_DROP);
+    result.out_port = 1;
+    result.next_stage = contains(&sr, INSTR_GOTO_TABLE);
+
     uint8_t vlan_tag[4] = { 0x81, 0x00,
                             rsv->vlan_pcp | rsv->vlan_vid >> 8, rsv->vlan_vid & 0xff };
 
-    for (uint8_t i = 0; i < rsv->len;i++) {
-        switch (add_to_resolve_list(rsv->is_tagged, &rsv->items[i])) {
-            case NO_CHNG:
-                repl_ctx->list[repl_ctx->rec_cnt].header = in_ctx->header;
-                repl_ctx->list[repl_ctx->rec_cnt].ports[repl_ctx->list[repl_ctx->rec_cnt].port_cnt] =
-                    (uint8_t) rsv->items[repl_ctx->rec_cnt].port;
-                repl_ctx->list[repl_ctx->rec_cnt].port_cnt++;
-                repl_ctx->rec_cnt++;
-                break;
+    /* Perform all actions obtained from the dst flow table:
+     * If table doesn't contain ACTION_GROUP, then send 
+     * one packet on corresponding port with pushing or deleting 
+     * vlan tag. Else perform all actions in group buckets. */
 
-            case ADD_TAG:
-                repl_ctx->list[repl_ctx->rec_cnt].header = in_ctx->header;
-                if (add_tag(repl_ctx->list[repl_ctx->rec_cnt].header.data,
-                            repl_ctx->list[repl_ctx->rec_cnt].header.sz,
-                            MEMBER_SIZE(struct eth_hdr, dst) + MEMBER_SIZE(struct eth_hdr, src),
-                            vlan_tag, sizeof(vlan_tag))) {
+    if (contains(&sr, ACTION_GROUP)) {
+        sk.table_nr = GROUP_TABLE;
+        sr = lfn->search_rd(sk);
+    }
 
+    struct res *r = (void *) sr.res_entry;
+    struct header tmp = in_ctx->header;
+
+    for (int i = 0; i < r->len; i++) {
+        switch (r->actions[i].type) {
+            case ACTION_PUSH_VLAN: 
+                if (add_tag(tmp.data, tmp.sz,
+                        MEMBER_SIZE(struct eth_hdr, dst) + MEMBER_SIZE(struct eth_hdr, src),
+                        vlan_tag, sizeof(vlan_tag), rsv->is_tagged)) {
                     sfn->free_fb(in_ctx->location.fb_id);
                     result.drop = 1;
                     return result;
                 }
-                repl_ctx->list[repl_ctx->rec_cnt].header.sz += sizeof(vlan_tag);
-                repl_ctx->list[repl_ctx->rec_cnt].ports[repl_ctx->list[repl_ctx->rec_cnt].port_cnt] =
-                    (uint8_t) rsv->items[repl_ctx->rec_cnt].port;
-                repl_ctx->list[repl_ctx->rec_cnt].port_cnt++;
-                repl_ctx->rec_cnt++;
+                tmp.sz += rsv->is_tagged ? 0 : sizeof(vlan_tag);
                 break;
 
-            case DEL_TAG:
-                repl_ctx->list[repl_ctx->rec_cnt].header = in_ctx->header;
-                if (del_tag(repl_ctx->list[repl_ctx->rec_cnt].header.data,
-                            repl_ctx->list[repl_ctx->rec_cnt].header.sz,
+            case ACTION_POP_VLAN:
+                if (del_tag(tmp.data, tmp.sz,
                             MEMBER_SIZE(struct eth_hdr, dst) + MEMBER_SIZE(struct eth_hdr, src),
-                            sizeof(vlan_tag))) {
-
+                            sizeof(vlan_tag), rsv->is_tagged)) {
                     sfn->free_fb(in_ctx->location.fb_id);
                     result.drop = 1;
                     return result;
                 }
-                repl_ctx->list[repl_ctx->rec_cnt].header.sz -= sizeof(vlan_tag);
-                repl_ctx->list[repl_ctx->rec_cnt].ports[repl_ctx->list[repl_ctx->rec_cnt].port_cnt] =
-                        (uint8_t) rsv->items[repl_ctx->rec_cnt].port;
-                repl_ctx->list[repl_ctx->rec_cnt].port_cnt++;
-                repl_ctx->rec_cnt++;
+                tmp.sz -= rsv->is_tagged ? sizeof(vlan_tag) : 0;
+                break;
+
+            case ACTION_OUTPUT:
+                if (r->actions[i].value != rsv->src_port) {
+                    repl_ctx->list[repl_ctx->rec_cnt].header = tmp;
+                    repl_ctx->list[repl_ctx->rec_cnt].ports[repl_ctx->list[repl_ctx->rec_cnt].port_cnt] =
+                        (uint8_t) r->actions[i].value;
+                    repl_ctx->list[repl_ctx->rec_cnt].port_cnt++;
+                    repl_ctx->rec_cnt++;
+                }
+                tmp = in_ctx->header;  
                 break;
 
             default:
@@ -207,73 +202,118 @@ struct resolve_result match_action_dst(struct stage_fn *sfn,
     return result;
 }
 
-
-/* Search for the desired port number from the hash table.
- * If it cannot be found, it comes back 0xff. */
-static uint8_t lookup_port(struct hashtable *tbl, uint32_t hash,
-						   struct ethaddr* mac, uint16_t tag)
+static uint8_t contains(struct search_result *sr, action_type_t type) 
 {
-	struct hashnode *h;
+    struct res *r = (void *) sr->res_entry;
 
-	for (h = get_head(tbl, hash); h; h = get_next(tbl, hash, h))
-		if (is_same_mac(&h->mac, mac) && h->vlan == tag)
-			return h->port;
-
-	return PORT_NOT_FOUND;
+    for (int i = 0; i < r->len; i++) {
+        if (r->actions[i].type == type) {
+            return 1;
+        }
+    }
+    return 0;
 }
 
-static uint8_t vlan_table_search(uint8_t dst_port, uint8_t src_port,
-								 uint16_t tag, struct vlan_node_item *list)
+static uint8_t get_action_port(struct search_result *sr) 
 {
-	struct vlan_table *tbl = vlan_table_mmap();
-	uint8_t len = 0;
-	struct vlan_node_item *items = tbl->nodes[tag].items;
-
-	if (dst_port != PORT_NOT_FOUND) {
-		for (uint8_t i = 0; i < tbl->nodes[tag].len; i++) {
-			if (items[i].port == dst_port) {
-				list[len].port = items[i].port;
-				list[len++].mode = items[i].mode;
-			}
-		}
-	} else {
-		for (uint8_t i = 0; i < tbl->nodes[tag].len; i++) {
-			if (items[i].port != src_port) {
-				list[len].port = items[i].port;
-				list[len++].mode = items[i].mode;
-			}
-		}
-	}
-
-	return len;
+    struct res *r = (void *) sr->res_entry;
+    
+    for (int i = 0; i < r->len; i++) {
+        if (r->actions[i].type == ACTION_OUTPUT) {
+            return r->actions[i].value;
+        }
+    }
+    return PORT_NOT_FOUND;
 }
 
-struct search_result lookup_switch(struct search_key sk)
+static void lookup_flow_actions(struct flow_table *tbl,
+                                struct ethaddr* mac, uint16_t tag, 
+                                struct res *r, uint8_t is_src_tbl)
+{
+    flow_entry_t *node;
+
+    for (int i = 0; i < tbl->len; i++) {
+        node = &(tbl->nodes[i]);
+        if (node->valid && is_same_mac(&(node->mac), mac) && node->vlan_tag == tag) {
+            for (int j = 0; j < node->act_len; j++) {
+                r->actions[j] = node->actions[j];
+                r->len++;
+            }
+            return;
+        }
+    }
+    if (is_src_tbl) {
+        r->actions[0].type = ACTION_OUTPUT;
+        r->actions[0].value = CTRL_PORT;
+        r->actions[1].type = INSTR_GOTO_TABLE;
+        r->actions[1].value = 1;
+        r->len = 2;
+    } else {
+        r->actions[0].type = ACTION_GROUP;
+        r->actions[0].value = tag;
+        r->len = 1;
+    }
+    return;
+}
+
+static void set_entry_actions_from_group_buckets(group_entry_t *entry, 
+                                                 struct res *r)
+{
+    assert(entry->type == ALL);
+    action_bucket_t *bucket;
+    for (int i = 0; i < entry->buck_len; i++) {
+        bucket = &(entry->buckets[i]);
+        for (int k = 0; k < bucket->act_len; k++) {
+            r->actions[r->len++] = bucket->actions[k];
+        }
+    }
+}
+
+static uint8_t group_table_search(uint16_t tag, struct res *r)
+{
+    struct group_table *tbl = group_table_mmap();
+    group_entry_t *entry = NULL;
+    for (int i = 0; i < tbl->len; i++) {
+        if (tbl->nodes[i].group_id == tag) {
+            entry = &(tbl->nodes[i]);
+            set_entry_actions_from_group_buckets(entry, r);
+            return r->len;
+        }
+    }
+    return r->len;
+}
+
+struct search_result lookup_flow(struct search_key sk)
 {
     struct search_result sr;
-    struct hashtable *hash_tbl;
+    struct flow_table *flow_tbl;
 
     struct key *k;
     k = (void *) sk.key;
 
     struct res *r;
     r = (void *) sr.res_entry;
+    r->len = 0;
+
+    uint8_t is_src_tbl = 0;
 
     switch (sk.table_nr) {
         case SRC_TABLE:
-            hash_tbl = src_table_mmap();
-            sr.res_entry[0] = lookup_port(hash_tbl, k->hash, &k->mac, k->tag);
+            flow_tbl = src_flow_table_mmap();
+            is_src_tbl = 1;
+            lookup_flow_actions(flow_tbl, &k->mac, k->tag, r, is_src_tbl);
             sr.not_found = 0;
             break;
 
         case DST_TABLE:
-            hash_tbl = dst_table_mmap();
-            sr.res_entry[0] = lookup_port(hash_tbl, k->hash, &k->mac, k->tag);
+            flow_tbl = dst_flow_table_mmap();
+            is_src_tbl = 0;
+            lookup_flow_actions(flow_tbl, &k->mac, k->tag, r, is_src_tbl);
             sr.not_found = 0;
             break;
 
-        case VLAN_TABLE:
-            r->len = vlan_table_search(k->dst_port, k->src_port, k->tag, r->items);
+        case GROUP_TABLE:
+            group_table_search(k->tag, r);
             sr.not_found = r->len ? 0 : 1;
             break;
 
@@ -281,24 +321,15 @@ struct search_result lookup_switch(struct search_key sk)
             sr.not_found = 1;
             break;
     }
-
     return sr;
 }
 
-
-static tag_task_t add_to_resolve_list(uint8_t is_tagged,
-                               struct vlan_node_item *item)
+int add_tag(int8_t *fb, uint16_t framesz, uint8_t offset,
+            uint8_t *tag, uint8_t tagsz, uint8_t is_tagged)
 {
     if (is_tagged) {
-        return ((item->mode == NO_TAG) ? DEL_TAG : NO_CHNG);
-    } else {
-        return ((item->mode == NO_TAG) ? NO_CHNG : ADD_TAG);
+        return 0;
     }
-}
-
-int add_tag(int8_t *fb, uint16_t framesz, uint8_t offset,
-            uint8_t *tag, uint8_t tagsz)
-{
     struct counter *glb_counters = get_counters();
     if (framesz + tagsz > sizeof(*fb)) {
         COUNTER_ATOMIC_INC(glb_counters->drop_frame_too_long);
@@ -314,8 +345,11 @@ int add_tag(int8_t *fb, uint16_t framesz, uint8_t offset,
 }
 
 static int del_tag(int8_t *fb, uint16_t framesz, uint8_t offset,
-                   uint8_t tagsz)
+                   uint8_t tagsz, uint8_t is_tagged)
 {
+    if (!is_tagged) {
+        return 0;
+    }
     memcpy(fb + offset, fb + offset + tagsz, framesz - offset - tagsz);
     return 0;
 }
