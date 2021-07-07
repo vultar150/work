@@ -48,16 +48,16 @@ struct resolve_dst_ctx {
     uint16_t vlan_pcp;
 
     uint8_t len;
-    struct vlan_node_item items[ETH_PORTS_NR];
+    // struct vlan_node_item items[ETH_PORTS_NR];
 };
-
-
 
 struct learn_ctx {
     struct ethaddr src_mac;
-    uint32_t src_hash;
-    uint8_t src_port;
     uint16_t vlan_tag;
+    instr_t actions_src[MAX_NM_ACTIONS];
+    uint16_t act_len_src;
+    instr_t actions_dst[MAX_NM_ACTIONS];
+    uint16_t act_len_dst;
 };
 
 #endif //NPU_VLAN_SDN_CONTEXT_H
