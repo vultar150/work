@@ -30,6 +30,12 @@
 #define MAX_HEADER_SIZE 100
 #define MAX_STAGE_CTX_SIZE 1066
 
+#define MAX_FLOW_TABLE_SIZE 100
+#define MAX_NM_ACTIONS 30
+#define MAX_GROUPS 10
+#define MAX_NM_BUCKETS 3
+#define MAX_NM_BUCKET_ACTIONS 10
+
 typedef enum {
     NO_CHNG = 0,
     ADD_TAG,
